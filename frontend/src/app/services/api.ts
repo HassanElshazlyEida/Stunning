@@ -43,8 +43,9 @@ interface GenerateResponse {
 interface HistoryResponse {
   prompts: Array<{
     id: string;
-    prompt: string;
-    timestamp: string;
+    text: string;
+    createdAt: string;
+    updatedAt: string;
   }>;
 }
 
@@ -104,15 +105,25 @@ export async function generateSections(prompt: string): Promise<GenerateResponse
 }
 
 /**
- * Get prompt history
+ * Get prompt history with timestamps
  */
-export const getPromptHistory = async (): Promise<string[]> => {
+export interface PromptHistoryItem {
+  text: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const getPromptHistory = async (): Promise<PromptHistoryItem[]> => {
   try {
     const response = await fetch(`${API_BASE_URL}/prompts/history`);
     if (!response.ok) throw new Error('Failed to fetch prompt history');
     
     const data = await response.json();
-    return data.map((prompt: any) => prompt.text);
+    return data.map((prompt: any) => ({
+      text: prompt.text,
+      createdAt: prompt.createdAt || new Date().toISOString(),
+      updatedAt: prompt.updatedAt
+    }));
   } catch (error) {
     console.error('Error fetching prompt history:', error);
     // Return empty array as fallback

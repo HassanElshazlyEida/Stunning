@@ -55,37 +55,60 @@ export class PromptsService {
   }
 
   // Generate sections based on prompt text with simulated streaming
-  // In a real implementation, this would call an AI service with streaming capabilities
+      // Now generates 3 dummy sections with HTML content for a ChatGPT-like experience
   private async generateSections(text: string): Promise<{ title: string; content: string }[]> {
-    // Define our sections based on the prompt
+    // Define our 3 dummy sections with HTML content
     const sectionTemplates = [
       {
-        title: 'Website Concept',
-        content: `A website for ${text} that helps users discover and explore new ideas.`,
+        title: 'Hero Section',
+        content: `<div class="hero-section">
+  <h1 class="hero-title">Welcome to ${text}</h1>
+  <p class="hero-subtitle">Your premier destination for innovative solutions</p>
+  <div class="cta-container">
+    <button class="cta-button primary">Get Started</button>
+    <button class="cta-button secondary">Learn More</button>
+  </div>
+</div>`,
       },
       {
-        title: 'Target Audience',
-        content: 'Professionals, enthusiasts, and curious minds interested in innovative solutions.',
+        title: 'About Section',
+        content: `<section class="about-section">
+  <div class="container">
+    <h2 class="section-title">About ${text}</h2>
+    <div class="content-columns">
+      <div class="text-column">
+        <p>We are dedicated to providing exceptional services and products that exceed expectations.</p>
+        <p>With years of experience in the industry, our team of experts is committed to delivering high-quality solutions.</p>
+      </div>
+      <div class="image-column">
+        <div class="image-placeholder">Image Placeholder</div>
+      </div>
+    </div>
+  </div>
+</section>`,
       },
       {
-        title: 'Key Features',
-        content: 'Interactive UI, personalized recommendations, social sharing capabilities.',
-      },
-      {
-        title: 'Design Direction',
-        content: 'Modern, clean aesthetic with intuitive navigation and responsive design.',
-      },
-      {
-        title: 'Technology Stack',
-        content: 'Frontend: React/Next.js, Backend: Node.js/NestJS, Database: MongoDB.',
-      },
-      {
-        title: 'Marketing Strategy',
-        content: `Social media campaigns, content marketing, and SEO optimization for ${text}.`,
-      },
-      {
-        title: 'Monetization Plan',
-        content: 'Subscription model, freemium features, and targeted advertisements.',
+        title: 'Contact Section',
+        content: `<section class="contact-section">
+  <div class="container">
+    <h2 class="section-title">Get in Touch</h2>
+    <div class="contact-form">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" placeholder="Your Name" />
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="Your Email" />
+      </div>
+      <div class="form-group">
+        <label for="message">Message</label>
+        <textarea id="message" placeholder="Your Message"></textarea>
+      </div>
+      <button class="submit-button">Send Message</button>
+    </div>
+  </div>
+</section>`,
       },
     ];
     

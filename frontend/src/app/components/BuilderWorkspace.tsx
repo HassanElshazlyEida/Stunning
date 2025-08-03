@@ -1,8 +1,11 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
-import ErrorMessage from "./ErrorMessage";
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FiMenu, FiX, FiShare2, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { PromptHistoryItem } from '../services/api';
+import Link from 'next/link';
+import ErrorMessage from './ErrorMessage';
 
 // Types for our sections
 export interface Section {
@@ -11,16 +14,22 @@ export interface Section {
   content: string;
 }
 
+// Type for prompt with timestamp
+export interface PromptWithTime {
+  text: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 // Props for the BuilderWorkspace component
 interface BuilderWorkspaceProps {
   prompt: string;
   onPromptChange: (newPrompt: string) => void;
-  onRegenerate: () => void;
   onReset: () => void;
   isLoading: boolean;
   sections: Section[];
-  promptHistory: string[];
-  onSelectPrompt: (prompt: string) => void;
+  promptHistory: PromptHistoryItem[];
+  onSelectPrompt: (prompt: PromptHistoryItem) => void;
   error?: string;
   onClearError?: () => void;
 }
@@ -28,7 +37,6 @@ interface BuilderWorkspaceProps {
 export default function BuilderWorkspace({
   prompt,
   onPromptChange,
-  onRegenerate,
   onReset,
   isLoading,
   sections,
@@ -38,6 +46,9 @@ export default function BuilderWorkspace({
   onClearError,
 }: BuilderWorkspaceProps) {
   const [newPrompt, setNewPrompt] = useState(prompt);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showShareToast, setShowShareToast] = useState(false);
+  const [activeMenuIndex, setActiveMenuIndex] = useState<number | null>(null);
   
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
@@ -46,147 +57,363 @@ export default function BuilderWorkspace({
       onPromptChange(newPrompt);
     }
   };
+  
+  // Share all sections (copy to clipboard with better UX)
+  const shareContent = () => {
+    const allSectionsContent = sections.map(section => {
+      return `# ${section.title}\n${section.content}`;
+    }).join('\n\n');
+    
+    navigator.clipboard.writeText(allSectionsContent)
+      .then(() => {
+        // Show toast notification instead of alert
+        setShowShareToast(true);
+        setTimeout(() => setShowShareToast(false), 3000);
+      })
+      .catch(err => {
+        console.error('Failed to copy: ', err);
+      });
+  };
+  
+  // Format date from ISO string without date-fns
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+      });
+    } catch (e) {
+      return 'Just now';
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-      {/* Header with title */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm py-4 px-6 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-purple-600 dark:text-purple-400">Website Idea Generator</h1>
-        <button 
-          onClick={onReset}
-          className="text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-        >
-          Start Over
-        </button>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex flex-col">
+      {/* Header with title - ChatGPT-like */}
+      <header className="bg-white dark:bg-gray-900 shadow-sm py-3 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+            </svg>
+          </Link>
+          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-200">Stunning.io</h1>
+        </div>
+        
+        {/* Share button in header */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={shareContent}
+            className="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700"
+            title="Share all sections"
+          >
+            <FiShare2 className="w-4 h-4" /> Share
+          </button>
+        </div>
+        
+        {/* Share toast notification */}
+        {showShareToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-16 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50"
+          >
+            Content copied to clipboard!
+          </motion.div>
+        )}
       </header>
 
-      {/* Main content - split screen */}
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* Left section - Preview */}
-        <div className="w-full md:w-2/3 p-6 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-gray-200">
-              Preview: {prompt}
-            </h2>
-            
-            {/* Loading state */}
-            {isLoading && (
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                <p className="text-gray-600 dark:text-gray-400">Generating sections...</p>
+      {/* Main content - ChatGPT-like layout */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Sidebar toggle button */}
+        <button 
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="absolute top-4 left-0 z-10 bg-white dark:bg-gray-800 shadow-md rounded-r-md p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          {sidebarOpen ? <FiChevronLeft className="w-4 h-4" /> : <FiChevronRight className="w-4 h-4" />}
+        </button>
+
+        {/* Sidebar - History - ChatGPT style */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.div 
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: '260px', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="h-screen fixed left-0 top-0 pt-16 pb-0 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 overflow-hidden z-10"
+            >
+              <div className="p-2 h-full flex flex-col">
+                <div className="flex items-center justify-between mb-4 px-2">
+                  <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">Prompts</h2>
+                  <button 
+                    onClick={() => setSidebarOpen(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800"
+                    aria-label="Collapse sidebar"
+                    title="Collapse sidebar"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                    </svg>
+                  </button>
+                </div>
                 
-                {/* Fake terminal loading log */}
-                <motion.div 
-                  className="w-full mt-6 bg-gray-900 text-green-400 p-4 rounded-md font-mono text-sm"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  transition={{ duration: 0.5 }}
-                >
-                  <p>{">"}  Analyzing prompt: "{prompt}"</p>
-                  <p>{">"} Generating website structure...</p>
-                  <p className="animate-pulse">{">"} Processing sections...</p>
-                </motion.div>
+                <div className="flex-1 overflow-y-auto">
+                  {promptHistory.length > 0 ? (
+                    <div className="flex-1 overflow-y-auto">
+                      {promptHistory.map((historyPrompt, index) => {
+                        return (
+                          <div 
+                            key={`history-${index}`}
+                            className={`group relative w-full text-left py-3 px-3 border-b border-gray-100 dark:border-gray-800 ${historyPrompt.text === prompt
+                              ? 'bg-gray-100 dark:bg-gray-800'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <button
+                                onClick={() => onSelectPrompt(historyPrompt)}
+                                className="text-left flex-1 overflow-hidden"
+                              >
+                                <div className="font-medium text-sm text-gray-800 dark:text-gray-200 line-clamp-1">
+                                  {historyPrompt.text.length > 30
+                                    ? `${historyPrompt.text.substring(0, 30)}...`
+                                    : historyPrompt.text
+                                  }
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {formatDate(historyPrompt.createdAt)}
+                                </div>
+                              </button>
+                              
+                              {/* Three dots menu */}
+                              <div className="relative">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuIndex(activeMenuIndex === index ? null : index);
+                                  }}
+                                  className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                                  </svg>
+                                </button>
+                                
+                                {/* Dropdown menu */}
+                                {activeMenuIndex === index && (
+                                  <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Get the sections for this prompt if available, otherwise share the prompt text
+                                        let contentToShare = '';
+                                        if (historyPrompt.text === prompt && sections.length > 0) {
+                                          contentToShare = sections.map(section => 
+                                            `${section.title}\n${section.content}\n\n`
+                                          ).join('');
+                                        } else {
+                                          contentToShare = historyPrompt.text;
+                                        }
+                                        navigator.clipboard.writeText(contentToShare);
+                                        setActiveMenuIndex(null);
+                                        setShowShareToast(true);
+                                        setTimeout(() => setShowShareToast(false), 3000);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                    >
+                                      <FiShare2 className="w-3.5 h-3.5" /> Share
+                                    </button>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Delete functionality would go here
+                                        setActiveMenuIndex(null);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                      </svg> Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 text-center p-6 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mx-auto mb-2 text-gray-400">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                      </svg>
+                      <p>No prompt history yet</p>
+                      <p className="text-xs mt-1">Your prompts will appear here</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main content area - ChatGPT-like */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Sections display area */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-32">{/* Added pb-32 to provide space at bottom for fixed input */}
+            {/* Current prompt info - Enhanced ChatGPT style */}
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-6 rounded-xl mb-8 shadow-sm border border-blue-100 dark:border-blue-800/30">
+              <div className="flex items-center mb-3">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-2 mr-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-semibold text-blue-800 dark:text-blue-300">Current Website Idea</h2>
+              </div>
+              <p className="text-gray-800 dark:text-gray-200 text-lg pl-2 border-l-4 border-blue-300 dark:border-blue-700 py-2 mb-3 italic">"{prompt}"</p>
+              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-1">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                {new Date().toLocaleString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: 'numeric',
+                  hour12: true
+                })}
+              </div>
+            </div>
+            
+            {/* Loading state - Enhanced */}
+            {isLoading && (
+              <div className="max-w-3xl mx-auto flex flex-col items-center justify-center py-12">
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 dark:border-gray-700 dark:border-t-purple-400 rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-8 bg-white dark:bg-gray-800 rounded-full"></div>
+                  </div>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 mt-4 font-medium">Generating website sections...</p>
+                <div className="mt-2 text-sm text-gray-500 dark:text-gray-500">This may take a few moments</div>
               </div>
             )}
 
-            {/* Sections */}
-            <AnimatePresence>
-              {!isLoading && sections.map((section, index) => (
-                <motion.div
-                  key={section.id}
-                  className="mb-8 bg-gray-50 dark:bg-gray-700 p-6 rounded-lg shadow-sm"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.2, duration: 0.5 }}
-                >
-                  <h3 className="text-xl font-bold mb-3 text-purple-600 dark:text-purple-400">{section.title}</h3>
-                  <p className="text-gray-700 dark:text-gray-300">{section.content}</p>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {/* Sections - ChatGPT style with enhanced HTML tag rendering */}
+            <div className="max-w-3xl mx-auto space-y-8">
+              {!isLoading && sections.map((section, index) => {
+                // Process content to add styling to HTML tags with improved syntax highlighting
+                const styledContent = section.content
+                  // Style opening tags with attributes
+                  .replace(/<([a-z0-9]+)([^>]*)>/gi, (match, tag, attrs) => {
+                    const styledAttrs = attrs.replace(/([a-z0-9-]+)=(["'])(.*?)\2/gi, 
+                      '<span class="text-blue-500 dark:text-blue-400">$1</span>=<span class="text-amber-500 dark:text-amber-400">$2$3$2</span>');
+                    return `<span class="text-pink-600 dark:text-pink-400">&lt;${tag}</span>${styledAttrs}<span class="text-pink-600 dark:text-pink-400">&gt;</span>`;
+                  })
+                  // Style simple opening tags
+                  .replace(/<([a-z0-9]+)>/gi, '<span class="text-pink-600 dark:text-pink-400">&lt;$1&gt;</span>')
+                  // Style closing tags
+                  .replace(/<\/([a-z0-9]+)>/gi, '<span class="text-pink-600 dark:text-pink-400">&lt;/$1&gt;</span>')
+                  // Style indentation for better readability
+                  .replace(/\n\s+/g, (match) => '\n' + match.replace(/\s/g, '&nbsp;'));
+                
+                return (
+                  <motion.div
+                    key={section.id}
+                    className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow duration-300"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.2, duration: 0.5 }}
+                  >
+                    <div className="flex items-center mb-4 border-b border-gray-200 dark:border-gray-700 pb-3">
+                      <div className="bg-gradient-to-r from-purple-600 to-blue-500 rounded-full w-8 h-8 flex items-center justify-center text-white font-bold mr-3">
+                        {index + 1}
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">{section.title}</h3>
+                    </div>
+                    <div 
+                      className="text-gray-700 dark:text-gray-300 prose dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg font-mono text-sm overflow-x-auto" 
+                      dangerouslySetInnerHTML={{ __html: styledContent }}
+                    />
+                  </motion.div>
+                );
+              })}
+            </div>
 
             {/* Error state */}
             {error && (
-              <ErrorMessage 
-                message={error} 
-                onRetry={() => {
-                  if (onClearError) onClearError();
-                  onRegenerate();
-                }} 
-              />
+              <div className="max-w-3xl mx-auto">
+                <ErrorMessage 
+                  message={error} 
+                  onRetry={() => {
+                    if (onClearError) onClearError();
+                  }} 
+                />
+              </div>
             )}
             
-            {/* No sections state */}
+            {/* No sections state - Enhanced */}
             {!isLoading && sections.length === 0 && !error && (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                <p>No sections generated yet.</p>
+              <div className="max-w-3xl mx-auto text-center py-12">
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 p-8 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mx-auto mb-4 text-purple-500 dark:text-purple-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                  </svg>
+                  <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">No Sections Generated Yet</h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">Enter a prompt below to generate website sections based on your idea.</p>
+                  <div className="text-sm text-gray-500 dark:text-gray-500 bg-white dark:bg-gray-800 p-3 rounded-lg inline-block">
+                    <span className="font-medium">Example:</span> "Create a portfolio website for a photographer"
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Right section - History + Controls */}
-        <div className="w-full md:w-1/3 bg-gray-100 dark:bg-gray-800 p-6 flex flex-col">
-          {/* Prompt history */}
-          <div className="mb-6 flex-1 overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-300">Prompt History</h3>
-            
-            {promptHistory.length > 0 ? (
-              <div className="space-y-2">
-                {promptHistory.map((historyPrompt, index) => (
-                  <motion.button
-                    key={index}
-                    className={`w-full text-left p-3 rounded-md text-sm ${
-                      historyPrompt === prompt
-                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                        : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
-                    }`}
-                    onClick={() => onSelectPrompt(historyPrompt)}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1, duration: 0.3 }}
-                  >
-                    {historyPrompt}
-                  </motion.button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">No history yet</p>
-            )}
-          </div>
-
-          {/* Prompt input area */}
-          <div className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm">
-            <form onSubmit={handleSubmit}>
-              <h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">Update Prompt</h3>
-              <textarea
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-800 focus:border-purple-500 outline-none transition-all mb-3"
-                rows={3}
-                value={newPrompt}
-                onChange={(e) => setNewPrompt(e.target.value)}
-                placeholder="Describe your website idea..."
-              />
-              <div className="flex space-x-2">
+          {/* Input area - ChatGPT style */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-3 border-t border-gray-200 dark:border-gray-700 z-10">{/* Added z-index to ensure input stays above content */}
+            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+              <div className="relative flex items-end rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
+                <textarea
+                  className="w-full p-3 pr-16 bg-transparent text-gray-700 dark:text-gray-200 outline-none resize-none min-h-[56px] max-h-[200px]"
+                  rows={1}
+                  value={newPrompt}
+                  onChange={(e) => setNewPrompt(e.target.value)}
+                  placeholder="Describe your website idea..."
+                  disabled={isLoading}
+                  style={{overflowY: 'auto'}}
+                />
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className={`flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-md transition-colors ${
-                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  disabled={isLoading || !newPrompt.trim()}
+                  className="absolute right-2 bottom-2 p-1.5 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Generate"
                 >
-                  Update
-                </button>
-                <button
-                  type="button"
-                  onClick={onRegenerate}
-                  disabled={isLoading}
-                  className={`flex-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 py-2 px-4 rounded-md transition-colors ${
-                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  Regenerate
+                  {isLoading ? (
+                    <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                    </svg>
+                  )}
                 </button>
               </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                Your website sections will be generated based on your prompt.
+              </p>
             </form>
           </div>
         </div>
