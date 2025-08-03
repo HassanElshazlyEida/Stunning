@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiMenu, FiX, FiShare2, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiMenu, FiX, FiShare2, FiChevronLeft, FiChevronRight, FiMoreVertical, FiTrash2 } from 'react-icons/fi';
 import { PromptHistoryItem } from '../services/api';
 import Link from 'next/link';
 import ErrorMessage from './ErrorMessage';
@@ -30,6 +30,7 @@ interface BuilderWorkspaceProps {
   sections: Section[];
   promptHistory: PromptHistoryItem[];
   onSelectPrompt: (prompt: PromptHistoryItem) => void;
+  onDeletePrompt?: (promptId: string) => Promise<boolean>;
   error?: string;
   onClearError?: () => void;
 }
@@ -42,13 +43,17 @@ export default function BuilderWorkspace({
   sections,
   promptHistory,
   onSelectPrompt,
+  onDeletePrompt,
   error,
   onClearError,
 }: BuilderWorkspaceProps) {
   const [newPrompt, setNewPrompt] = useState(prompt);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showShareToast, setShowShareToast] = useState(false);
+  const [showDeleteToast, setShowDeleteToast] = useState(false);
   const [activeMenuIndex, setActiveMenuIndex] = useState<number | null>(null);
+  const [deleteStatus, setDeleteStatus] = useState<{id: string, status: 'deleting' | 'success' | 'error' | null}>({id: '', status: null});
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{show: boolean, promptId: string, promptText: string}>({show: false, promptId: '', promptText: ''});
   
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
@@ -97,11 +102,6 @@ export default function BuilderWorkspace({
       {/* Header with title - ChatGPT-like */}
       <header className="bg-white dark:bg-gray-900 shadow-sm py-3 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
-          </Link>
           <h1 className="text-xl font-bold text-gray-800 dark:text-gray-200">Stunning.io</h1>
         </div>
         
@@ -121,10 +121,28 @@ export default function BuilderWorkspace({
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="absolute top-16 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50"
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50 flex items-center gap-2"
           >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
             Content copied to clipboard!
+          </motion.div>
+        )}
+        
+        {/* Delete toast notification */}
+        {showDeleteToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            Prompt deleted successfully!
           </motion.div>
         )}
       </header>
@@ -140,47 +158,47 @@ export default function BuilderWorkspace({
           {sidebarOpen ? <FiChevronLeft className="w-4 h-4" /> : <FiChevronRight className="w-4 h-4" />}
         </button>
 
-        {/* Sidebar - History - ChatGPT style */}
+        {/* Sidebar - History */}
         <AnimatePresence>
           {sidebarOpen && (
-            <motion.div 
+            <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: '260px', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="h-screen fixed left-0 top-0 pt-16 pb-0 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 overflow-hidden z-10"
+              className="h-screen fixed left-0 top-0 pt-16 pb-36 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-20 flex flex-col"
             >
-              <div className="p-2 h-full flex flex-col">
+              <div className="p-2 flex-1 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-4 px-2">
-                  <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">Prompts</h2>
+                  <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">Chat</h2>
                   <button 
                     onClick={() => setSidebarOpen(false)}
                     className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800"
                     aria-label="Collapse sidebar"
                     title="Collapse sidebar"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                    </svg>
+                    <FiX className="w-4 h-4" />
                   </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
                   {promptHistory.length > 0 ? (
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="w-full">
                       {promptHistory.map((historyPrompt, index) => {
+                        const isDeleting = deleteStatus.id === historyPrompt._id && deleteStatus.status === 'deleting';
                         return (
                           <div 
                             key={`history-${index}`}
-                            className={`group relative w-full text-left py-3 px-3 border-b border-gray-100 dark:border-gray-800 ${historyPrompt.text === prompt
+                            className={`group relative w-full text-left py-3 px-3 border-b border-gray-100 dark:border-gray-800 ${historyPrompt.isActive
                               ? 'bg-gray-100 dark:bg-gray-800'
                               : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                            }`}
+                            } ${isDeleting ? 'opacity-50' : ''}`}
                           >
                             <div className="flex justify-between items-start">
                               <button
                                 onClick={() => onSelectPrompt(historyPrompt)}
                                 className="text-left flex-1 overflow-hidden"
+                                disabled={isDeleting}
                               >
                                 <div className="font-medium text-sm text-gray-800 dark:text-gray-200 line-clamp-1">
                                   {historyPrompt.text.length > 30
@@ -193,55 +211,59 @@ export default function BuilderWorkspace({
                                 </div>
                               </button>
                               
-                              {/* Three dots menu */}
+                              {/* Three-dot menu with options */}
                               <div className="relative">
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setActiveMenuIndex(activeMenuIndex === index ? null : index);
                                   }}
-                                  className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                  className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+                                  title="Options"
+                                  disabled={isDeleting}
                                 >
-                                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-                                  </svg>
+                                  <FiMoreVertical className="w-4 h-4" />
                                 </button>
                                 
                                 {/* Dropdown menu */}
                                 {activeMenuIndex === index && (
-                                  <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                                  <div className="absolute right-0 top-8 w-36 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                                    {/* Delete option */}
                                     <button 
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        setActiveMenuIndex(null);
+                                        // Show delete confirmation popup instead of deleting immediately
+                                        if (historyPrompt._id) {
+                                          setDeleteConfirmation({
+                                            show: true,
+                                            promptId: historyPrompt._id,
+                                            promptText: historyPrompt.text.substring(0, 30) + (historyPrompt.text.length > 30 ? '...' : '')
+                                          });
+                                        }
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500 dark:text-red-400"
+                                    >
+                                      <FiTrash2 className="w-4 h-4" /> Delete
+                                    </button>
+                                    
+                                    {/* Share option */}
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveMenuIndex(null);
                                         // Get the sections for this prompt if available, otherwise share the prompt text
                                         let contentToShare = '';
-                                        if (historyPrompt.text === prompt && sections.length > 0) {
-                                          contentToShare = sections.map(section => 
-                                            `${section.title}\n${section.content}\n\n`
-                                          ).join('');
-                                        } else {
-                                          contentToShare = historyPrompt.text;
-                                        }
+                                        contentToShare = sections.map(section => 
+                                          `${section.title}\n${section.content}\n\n`
+                                        ).join('');
                                         navigator.clipboard.writeText(contentToShare);
-                                        setActiveMenuIndex(null);
                                         setShowShareToast(true);
                                         setTimeout(() => setShowShareToast(false), 3000);
                                       }}
-                                      className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-blue-500 dark:text-blue-400"
                                     >
-                                      <FiShare2 className="w-3.5 h-3.5" /> Share
-                                    </button>
-                                    <button 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        // Delete functionality would go here
-                                        setActiveMenuIndex(null);
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                                    >
-                                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                      </svg> Delete
+                                      <FiShare2 className="w-4 h-4" /> Share
                                     </button>
                                   </div>
                                 )}
@@ -267,34 +289,9 @@ export default function BuilderWorkspace({
         </AnimatePresence>
 
         {/* Main content area - ChatGPT-like */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Sections display area */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-32">{/* Added pb-32 to provide space at bottom for fixed input */}
-            {/* Current prompt info - Enhanced ChatGPT style */}
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-6 rounded-xl mb-8 shadow-sm border border-blue-100 dark:border-blue-800/30">
-              <div className="flex items-center mb-3">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-2 mr-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-blue-800 dark:text-blue-300">Current Website Idea</h2>
-              </div>
-              <p className="text-gray-800 dark:text-gray-200 text-lg pl-2 border-l-4 border-blue-300 dark:border-blue-700 py-2 mb-3 italic">"{prompt}"</p>
-              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-1">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                {new Date().toLocaleString('en-US', { 
-                  month: 'short', 
-                  day: 'numeric', 
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: 'numeric',
-                  hour12: true
-                })}
-              </div>
-            </div>
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Sections display area - with bottom margin to prevent content from being hidden under input */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-6" style={{ marginBottom: '180px' }}>
             
             {/* Loading state - Enhanced */}
             {isLoading && (
@@ -381,17 +378,27 @@ export default function BuilderWorkspace({
           </div>
 
           {/* Input area - ChatGPT style */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-3 border-t border-gray-200 dark:border-gray-700 z-10">{/* Added z-index to ensure input stays above content */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-3 border-t border-gray-200 dark:border-gray-700 z-30" style={{ maxHeight: '170px' }}>
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
               <div className="relative flex items-end rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
                 <textarea
-                  className="w-full p-3 pr-16 bg-transparent text-gray-700 dark:text-gray-200 outline-none resize-none min-h-[56px] max-h-[200px]"
-                  rows={1}
+                  className="w-full p-3 pr-16 bg-transparent text-gray-700 dark:text-gray-200 outline-none resize-none min-h-[56px] max-h-[200px] custom-scrollbar"
+                  rows={3}
                   value={newPrompt}
-                  onChange={(e) => setNewPrompt(e.target.value)}
+                  onChange={(e) => {
+                    setNewPrompt(e.target.value);
+                    // Auto-resize the textarea based on content
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                  }}
                   placeholder="Describe your website idea..."
                   disabled={isLoading}
                   style={{overflowY: 'auto'}}
+                  onFocus={(e) => {
+                    // Ensure proper height on focus
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                  }}
                 />
                 <button
                   type="submit"
@@ -418,6 +425,54 @@ export default function BuilderWorkspace({
           </div>
         </div>
       </div>
+      
+      {/* Delete confirmation popup */}
+      {deleteConfirmation.show && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">Delete Prompt</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">Are you sure you want to delete this prompt?</p>
+            <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md mb-4">
+              <p className="text-gray-800 dark:text-gray-200 font-medium">"{deleteConfirmation.promptText}"</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmation({show: false, promptId: '', promptText: ''})}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (onDeletePrompt && deleteConfirmation.promptId) {
+                    setDeleteStatus({id: deleteConfirmation.promptId, status: 'deleting'});
+                    setDeleteConfirmation({show: false, promptId: '', promptText: ''});
+                    
+                    const success = await onDeletePrompt(deleteConfirmation.promptId);
+                    
+                    if (success) {
+                      setDeleteStatus({id: deleteConfirmation.promptId, status: 'success'});
+                      // Show toast notification
+                      setShowDeleteToast(true);
+                      // Clear status and hide toast after a short delay
+                      setTimeout(() => {
+                        setDeleteStatus({id: '', status: null});
+                        setShowDeleteToast(false);
+                      }, 3000);
+                    } else {
+                      setDeleteStatus({id: deleteConfirmation.promptId, status: 'error'});
+                      setTimeout(() => setDeleteStatus({id: '', status: null}), 2000);
+                    }
+                  }
+                }}
+                className="px-4 py-2 text-white bg-red-500 rounded-md hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

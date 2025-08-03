@@ -13,6 +13,7 @@ export interface PromptData {
   sessionId: string;
   createdAt: string;
   updatedAt: string;
+  isActive?: boolean; // Flag to track the currently active prompt
 }
 
 // Get or create session ID - using a stable identifier for the user/device
@@ -108,9 +109,11 @@ export async function generateSections(prompt: string): Promise<GenerateResponse
  * Get prompt history with timestamps
  */
 export interface PromptHistoryItem {
+  _id: string;
   text: string;
   createdAt: string;
   updatedAt?: string;
+  isActive?: boolean; // Flag to track the currently active prompt
 }
 
 export const getPromptHistory = async (): Promise<PromptHistoryItem[]> => {
@@ -120,9 +123,11 @@ export const getPromptHistory = async (): Promise<PromptHistoryItem[]> => {
     
     const data = await response.json();
     return data.map((prompt: any) => ({
+      _id: prompt._id,
       text: prompt.text,
       createdAt: prompt.createdAt || new Date().toISOString(),
-      updatedAt: prompt.updatedAt
+      updatedAt: prompt.updatedAt,
+      isActive: false // Initialize all prompts as inactive
     }));
   } catch (error) {
     console.error('Error fetching prompt history:', error);
@@ -142,9 +147,17 @@ export async function checkSessionPrompts(): Promise<{ hasPrompts: boolean; prom
     }
     
     const prompts = await response.json();
+    
+    // Add isActive property to the most recent prompt
+    const processedPrompts = prompts && prompts.length > 0 ? 
+      prompts.map((prompt: any, index: number) => ({
+        ...prompt,
+        isActive: index === 0 // Mark the most recent prompt as active
+      })) : [];
+      
     return { 
-      hasPrompts: prompts && prompts.length > 0,
-      prompts: prompts || []
+      hasPrompts: processedPrompts.length > 0,
+      prompts: processedPrompts
     };
   } catch (error) {
     console.error('Error checking session prompts:', error);
@@ -174,5 +187,41 @@ export const savePromptAndSections = async (text: string, sections: Section[]): 
   } catch (error) {
     console.error('Error saving prompt and sections:', error);
     // We don't throw here to prevent UI disruption
+  }
+}
+
+/**
+ * Delete a prompt by its ID
+ */
+export const deletePrompt = async (id: string): Promise<boolean> => {
+  try {
+    console.log(`API: Deleting prompt with ID: ${id}`);
+    
+    // Validate MongoDB ID format (24 hex characters)
+    const isValidMongoId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidMongoId) {
+      console.error('Invalid MongoDB ID format:', id);
+      return false;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/prompts/${id}`, {
+      method: 'DELETE',
+    });
+    
+    console.log('Delete response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to delete prompt: ${response.status}`, errorText);
+      throw new Error(`Failed to delete prompt: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json().catch(() => null);
+    console.log('Delete result:', result);
+    
+    return true;
+  } catch (error) {
+    console.error('Error deleting prompt:', error);
+    return false;
   }
 }
