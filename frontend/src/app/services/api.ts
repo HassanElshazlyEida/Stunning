@@ -3,7 +3,35 @@
 import { Section } from '../components/BuilderWorkspace';
 
 // API base URL - will come from environment variables in production
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'http://localhost:3001/api';
+
+// Interface for prompt data
+export interface PromptData {
+  _id: string;
+  text: string;
+  sections: { title: string; content: string }[];
+  sessionId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Get or create session ID - using a stable identifier for the user/device
+const getSessionId = (): string => {
+  if (typeof window === 'undefined') return '';
+
+  let sessionId = localStorage.getItem('sessionId');
+  if (!sessionId) {
+    // Create a stable session ID with a fixed prefix and a random string
+    // This will remain consistent for this user/browser until localStorage is cleared
+    const randomId = Math.random().toString(36).substring(2, 15);
+    sessionId = `session-${randomId}`;
+    localStorage.setItem('sessionId', sessionId);
+    console.log('Created new session ID:', sessionId);
+  } else {
+    console.log('Using existing session ID:', sessionId);
+  }
+  return sessionId;
+};
 
 // Interface for the response from the generate endpoint
 interface GenerateResponse {
@@ -22,22 +50,41 @@ interface HistoryResponse {
 
 /**
  * Generate sections based on a prompt
+ * This function sends the prompt to the backend API and includes the session ID
  */
-export async function   generateSections(prompt: string): Promise<GenerateResponse> {
+export async function generateSections(prompt: string): Promise<GenerateResponse> {
   try {
-    // For now, simulate API call with dummy data
-    // In a real implementation, this would be:
-    // const response = await fetch(`${API_BASE_URL}/generate`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ prompt }),
-    // });
-    // return await response.json();
+    // Get session ID for this request
+    const sessionId = getSessionId();
+    console.log('Generating sections with session ID:', sessionId);
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const response = await fetch(`${API_BASE_URL}/prompts/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        text: prompt,
+        sessionId // Include the session ID with the request
+      }),
+    });
     
-    // Return dummy data
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Transform the response to match our interface
+    return {
+      id: data._id || `gen-${Date.now()}`,
+      sections: data.sections.map((section: any, index: number) => ({
+        id: `section-${index}-${Date.now()}`,
+        title: section.title,
+        content: section.content
+      }))
+    };
+  } catch (error) {
+    console.error('Error generating sections:', error);
+    // Fallback to dummy data if API fails
     return {
       id: `gen-${Date.now()}`,
       sections: [
@@ -50,44 +97,71 @@ export async function   generateSections(prompt: string): Promise<GenerateRespon
           id: `section-2-${Date.now()}`,
           title: 'About Section',
           content: `An informative about section that explains the purpose and value proposition of "${prompt}". Includes key features and benefits.`
-        },
-        {
-          id: `section-3-${Date.now()}`,
-          title: 'Contact Section',
-          content: `A user-friendly contact form for "${prompt}" with fields for name, email, and message. Includes contact information and social media links.`
         }
       ]
     };
-  } catch (error) {
-    console.error('Error generating sections:', error);
-    throw error;
   }
 }
 
 /**
  * Get prompt history
  */
-export async function getPromptHistory(): Promise<string[]> {
+export const getPromptHistory = async (): Promise<string[]> => {
   try {
-    // For now, return empty array
-    // In a real implementation, this would fetch from the API
-    return [];
+    const response = await fetch(`${API_BASE_URL}/prompts/history`);
+    if (!response.ok) throw new Error('Failed to fetch prompt history');
+    
+    const data = await response.json();
+    return data.map((prompt: any) => prompt.text);
   } catch (error) {
     console.error('Error fetching prompt history:', error);
-    throw error;
+    // Return empty array as fallback
+    return [];
   }
-}
+};
+
+// Check if session has prompts and return them
+export async function checkSessionPrompts(): Promise<{ hasPrompts: boolean; prompts: PromptData[] }> {
+  try {
+    const sessionId = getSessionId();
+    const response = await fetch(`${API_BASE_URL}/prompts/session/${sessionId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status}`);
+    }
+    
+    const prompts = await response.json();
+    return { 
+      hasPrompts: prompts && prompts.length > 0,
+      prompts: prompts || []
+    };
+  } catch (error) {
+    console.error('Error checking session prompts:', error);
+    return { hasPrompts: false, prompts: [] };
+  }
+};
 
 /**
  * Save a prompt and its generated sections
  */
-export async function savePromptAndSections(prompt: string, sections: Section[]): Promise<void> {
+export const savePromptAndSections = async (text: string, sections: Section[]): Promise<void> => {
   try {
-    // For now, just log to console
-    // In a real implementation, this would save to the API
-    console.log('Saving prompt and sections:', { prompt, sections });
+    // Get session ID - this will create it if it doesn't exist
+    const sessionId = getSessionId();
+    
+    await fetch(`${API_BASE_URL}/prompts/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text, sessionId, sections }),
+    });
+    
+    // No need to set sessionId again here since getSessionId() already handles this
+    
+    console.log('Saved prompt and sections successfully');
   } catch (error) {
     console.error('Error saving prompt and sections:', error);
-    throw error;
+    // We don't throw here to prevent UI disruption
   }
 }

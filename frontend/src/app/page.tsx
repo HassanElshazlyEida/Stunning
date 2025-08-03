@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import BuilderWorkspace, { Section } from "./components/BuilderWorkspace";
-import { generateSections, getPromptHistory, savePromptAndSections } from "./services/api";
+import { generateSections, getPromptHistory, checkSessionPrompts } from "./services/api";
 
 // Sample prompt suggestions
 const PROMPT_SUGGESTIONS = [
@@ -27,6 +27,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [sections, setSections] = useState<Section[]>([]);
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [error, setError] = useState<string | undefined>(undefined);
   
   // Rotate through suggestions every 3 seconds
   useEffect(() => {
@@ -37,6 +38,49 @@ export default function Home() {
       return () => clearInterval(interval);
     }
   }, [isBuilderMode]);
+  
+  // Check for existing session prompts on initial load
+  useEffect(() => {
+    async function initializeApp() {
+      try {
+        // Check if user has prompts in the current session
+        // This will return both the existence flag and the session prompts
+        const sessionData = await checkSessionPrompts();
+        
+        // If prompts exist for this session, switch to builder mode
+        if (sessionData.hasPrompts && sessionData.prompts.length > 0) {
+          console.log('Found existing prompts for this session, switching to builder mode');
+          setIsBuilderMode(true);
+          
+          // Use the session prompts directly instead of making another API call
+          const sessionPrompts = sessionData.prompts.map(prompt => prompt.text);
+          setPromptHistory(sessionPrompts);
+          
+          // Use the most recent prompt
+          const mostRecentPrompt = sessionData.prompts[0].text;
+          setCurrentPrompt(mostRecentPrompt);
+          
+          // Use the sections from the most recent prompt
+          if (sessionData.prompts[0].sections) {
+            // Add id to each section to match the Section interface
+            const sectionsWithId = sessionData.prompts[0].sections.map((section, index) => ({
+              ...section,
+              id: `section-${index}`
+            }));
+            setSections(sectionsWithId);
+          } else {
+            // Only generate sections if they don't exist
+            generateSectionsFromPrompt(mostRecentPrompt);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to initialize app:', err);
+        // Don't show error for this as it's not critical
+      }
+    }
+    
+    initializeApp();
+  }, []);
 
   // Handle input focus
   const handleFocus = () => setInputFocused(true);
@@ -65,14 +109,38 @@ export default function Home() {
   // Generate sections from a prompt
   const generateSectionsFromPrompt = async (prompt: string) => {
     setIsLoading(true);
+    setError(undefined); // Clear any previous errors
+    
     try {
+      // The generateSections function now handles sending the session ID to the backend
+      // so we don't need a separate call to savePromptAndSections
       const response = await generateSections(prompt);
       setSections(response.sections);
-      // Save to backend (simulated)
-      await savePromptAndSections(prompt, response.sections);
+      
+      // Store in localStorage for offline access
+      try {
+        localStorage.setItem('lastPrompt', prompt);
+        localStorage.setItem('lastSections', JSON.stringify(response.sections));
+        localStorage.setItem('lastUpdated', new Date().toISOString());
+      } catch (storageError) {
+        console.warn('Could not save to localStorage:', storageError);
+      }
     } catch (error) {
       console.error("Error generating sections:", error);
-      // We'll handle errors in Phase 7
+      setError("Failed to generate website sections. Please try again.");
+      
+      // Try to load from localStorage as fallback
+      try {
+        const lastPrompt = localStorage.getItem('lastPrompt');
+        const lastSections = localStorage.getItem('lastSections');
+        
+        if (lastPrompt && lastSections && lastPrompt === prompt) {
+          setSections(JSON.parse(lastSections));
+          setError("Using cached results due to connection issues.");
+        }
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -80,12 +148,15 @@ export default function Home() {
   
   // Handle prompt change in builder mode
   const handlePromptChange = (newPrompt: string) => {
-    setCurrentPrompt(newPrompt);
-    generateSectionsFromPrompt(newPrompt);
-    
-    // Add to history if not already there
-    if (!promptHistory.includes(newPrompt)) {
-      setPromptHistory(prev => [newPrompt, ...prev]);
+    // Only generate sections if the prompt has actually changed
+    if (newPrompt !== currentPrompt) {
+      setCurrentPrompt(newPrompt);
+      generateSectionsFromPrompt(newPrompt);
+      
+      // Add to history if not already there
+      if (!promptHistory.includes(newPrompt)) {
+        setPromptHistory(prev => [newPrompt, ...prev]);
+      }
     }
   };
   
@@ -99,6 +170,12 @@ export default function Home() {
     setIsBuilderMode(false);
     setInputValue("");
     setInputFocused(false);
+    setError(undefined);
+  };
+  
+  // Clear error state
+  const handleClearError = () => {
+    setError(undefined);
   };
   
   // Handle selecting a prompt from history
@@ -270,6 +347,8 @@ export default function Home() {
             sections={sections}
             promptHistory={promptHistory}
             onSelectPrompt={handleSelectPrompt}
+            error={error}
+            onClearError={handleClearError}
           />
         </motion.div>
       )}

@@ -1,7 +1,8 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import ErrorMessage from "./ErrorMessage";
 
 // Types for our sections
 export interface Section {
@@ -20,6 +21,8 @@ interface BuilderWorkspaceProps {
   sections: Section[];
   promptHistory: string[];
   onSelectPrompt: (prompt: string) => void;
+  error?: string;
+  onClearError?: () => void;
 }
 
 export default function BuilderWorkspace({
@@ -31,6 +34,8 @@ export default function BuilderWorkspace({
   sections,
   promptHistory,
   onSelectPrompt,
+  error,
+  onClearError,
 }: BuilderWorkspaceProps) {
   const [newPrompt, setNewPrompt] = useState(prompt);
   
@@ -100,8 +105,19 @@ export default function BuilderWorkspace({
               ))}
             </AnimatePresence>
 
+            {/* Error state */}
+            {error && (
+              <ErrorMessage 
+                message={error} 
+                onRetry={() => {
+                  if (onClearError) onClearError();
+                  onRegenerate();
+                }} 
+              />
+            )}
+            
             {/* No sections state */}
-            {!isLoading && sections.length === 0 && (
+            {!isLoading && sections.length === 0 && !error && (
               <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 <p>No sections generated yet.</p>
               </div>
