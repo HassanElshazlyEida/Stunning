@@ -1,0 +1,98 @@
+/* Cloud animations CSS */
+.cloud-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  height: 100vh;
+  width: 100vw;
+}
+
+.cloud-suggestion {
+  position: absolute;
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(4px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+  opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cloud-suggestion:hover {
+  transform: scale(1.05);
+  box-shadow: 0 15px 20px -3px rgba(0, 0, 0, 0.15), 0 8px 10px -2px rgba(0, 0, 0, 0.1);
+}
+
+/* Fixed positions for each cloud suggestion */
+.cloud-suggestion:nth-child(1) { left: 15%; top: 15%; z-index: 1; }
+.cloud-suggestion:nth-child(2) { left: 80%; top: 12%; z-index: 2; }
+.cloud-suggestion:nth-child(3) { left: 18%; top: 80%; z-index: 1; }
+.cloud-suggestion:nth-child(4) { left: 85%; top: 78%; z-index: 3; }
+.cloud-suggestion:nth-child(5) { left: 12%; top: 45%; z-index: 2; }
+.cloud-suggestion:nth-child(6) { left: 88%; top: 50%; z-index: 1; }
+.cloud-suggestion:nth-child(7) { left: 50%; top: 10%; z-index: 2; }
+.cloud-suggestion:nth-child(8) { left: 50%; top: 85%; z-index: 3; }
+.cloud-suggestion:nth-child(9) { left: 30%; top: 30%; z-index: 1; }
+.cloud-suggestion:nth-child(10) { left: 70%; top: 30%; z-index: 2; }
+.cloud-suggestion:nth-child(11) { left: 30%; top: 70%; z-index: 3; }
+.cloud-suggestion:nth-child(12) { left: 70%; top: 70%; z-index: 1; }
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+  .cloud-suggestion {
+    background-image: linear-gradient(to right, rgba(31, 41, 55, 0.9), rgba(31, 41, 55, 0.7));
+    color: #e5e7eb;
+    border: 1px solid rgba(55, 65, 81, 0.3);
+  }
+}
+
+/* Float animations with different durations */
+.float-1 {
+  animation: float1 5s ease-in-out infinite alternate;
+}
+
+.float-2 {
+  animation: float2 6s ease-in-out infinite alternate;
+}
+
+.float-3 {
+  animation: float3 5.5s ease-in-out infinite alternate;
+}
+
+.float-4 {
+  animation: float4 4.5s ease-in-out infinite alternate;
+}
+
+/* Animation keyframes for gentle floating */
+@keyframes float1 {
+  0% { transform: translateY(0) scale(1) rotate(-0.5deg); }
+  50% { transform: translateY(-8px) scale(1.03) rotate(0.5deg); }
+  100% { transform: translateY(0) scale(1) rotate(-0.5deg); }
+}
+
+@keyframes float2 {
+  0% { transform: translateY(0) scale(1) rotate(0.5deg); }
+  50% { transform: translateY(-10px) scale(1.02) rotate(-0.5deg); }
+  100% { transform: translateY(0) scale(1) rotate(0.5deg); }
+}
+
+@keyframes float3 {
+  0% { transform: translateY(0) scale(1) rotate(-0.3deg); }
+  50% { transform: translateY(-6px) scale(1.03) rotate(0.3deg); }
+  100% { transform: translateY(0) scale(1) rotate(-0.3deg); }
+}
+
+@keyframes float4 {
+  0% { transform: translateY(0) scale(1) rotate(0.2deg); }
+  50% { transform: translateY(-9px) scale(1.02) rotate(-0.2deg); }
+  100% { transform: translateY(0) scale(1) rotate(0.2deg); }
+}

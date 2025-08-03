@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
 import BuilderWorkspace, { Section } from "./components/BuilderWorkspace";
-import { generateSections, getPromptHistory, checkSessionPrompts } from "./services/api";
+import { generateSections, getPromptHistory, checkSessionPrompts, PromptHistoryItem } from "./services/api";
+
+// CSS for cloud animations
+import "./styles/cloud-animations.css";
 
 // Sample prompt suggestions
 const PROMPT_SUGGESTIONS = [
@@ -13,6 +15,8 @@ const PROMPT_SUGGESTIONS = [
   "Create a blog website",
   "Build a restaurant website",
   "Design a travel agency site",
+  "Create a fitness app landing page",
+  "Build a real estate website",
 ];
 
 export default function Home() {
@@ -26,7 +30,7 @@ export default function Home() {
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sections, setSections] = useState<Section[]>([]);
-  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [promptHistory, setPromptHistory] = useState<PromptHistoryItem[]>([]);
   const [error, setError] = useState<string | undefined>(undefined);
   
   // Rotate through suggestions every 3 seconds
@@ -53,7 +57,11 @@ export default function Home() {
           setIsBuilderMode(true);
           
           // Use the session prompts directly instead of making another API call
-          const sessionPrompts = sessionData.prompts.map(prompt => prompt.text);
+          const sessionPrompts = sessionData.prompts.map(prompt => ({
+            text: prompt.text,
+            createdAt: prompt.createdAt || new Date().toISOString(),
+            updatedAt: prompt.updatedAt
+          }));
           setPromptHistory(sessionPrompts);
           
           // Use the most recent prompt
@@ -100,8 +108,12 @@ export default function Home() {
       await generateSectionsFromPrompt(inputValue);
       
       // Add to history if not already there
-      if (!promptHistory.includes(inputValue)) {
-        setPromptHistory(prev => [inputValue, ...prev]);
+      if (!promptHistory.some(item => item.text === inputValue)) {
+        const newPromptItem: PromptHistoryItem = {
+          text: inputValue,
+          createdAt: new Date().toISOString()
+        };
+        setPromptHistory(prev => [newPromptItem, ...prev]);
       }
     }
   };
@@ -120,8 +132,6 @@ export default function Home() {
       // Store in localStorage for offline access
       try {
         localStorage.setItem('lastPrompt', prompt);
-        localStorage.setItem('lastSections', JSON.stringify(response.sections));
-        localStorage.setItem('lastUpdated', new Date().toISOString());
       } catch (storageError) {
         console.warn('Could not save to localStorage:', storageError);
       }
@@ -148,21 +158,25 @@ export default function Home() {
   
   // Handle prompt change in builder mode
   const handlePromptChange = (newPrompt: string) => {
-    // Only generate sections if the prompt has actually changed
     if (newPrompt !== currentPrompt) {
       setCurrentPrompt(newPrompt);
       generateSectionsFromPrompt(newPrompt);
       
       // Add to history if not already there
-      if (!promptHistory.includes(newPrompt)) {
-        setPromptHistory(prev => [newPrompt, ...prev]);
+      if (!promptHistory.some(item => item.text === newPrompt)) {
+        const newPromptItem: PromptHistoryItem = {
+          text: newPrompt,
+          createdAt: new Date().toISOString()
+        };
+        setPromptHistory(prev => [newPromptItem, ...prev]);
       }
     }
   };
   
-  // Handle regenerate button click
+  // Regenerate functionality removed as requested
   const handleRegenerate = () => {
-    generateSectionsFromPrompt(currentPrompt);
+    // This function is kept as a placeholder but doesn't do anything
+    console.log("Regenerate functionality has been removed");
   };
   
   // Handle reset button click
@@ -179,85 +193,42 @@ export default function Home() {
   };
   
   // Handle selecting a prompt from history
-  const handleSelectPrompt = (prompt: string) => {
-    setCurrentPrompt(prompt);
-    generateSectionsFromPrompt(prompt);
+  const handleSelectPrompt = (prompt: PromptHistoryItem) => {
+    setCurrentPrompt(prompt.text);
+    generateSectionsFromPrompt(prompt.text);
   };
 
   return (
-    <AnimatePresence mode="wait">
+    <>
       {!isBuilderMode ? (
         // Home Screen
-        <motion.div 
-          key="home"
-          className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-blue-900/20 flex flex-col items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.5 }}
-        >
-          {/* Animated background blobs */}
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-blue-900/20 flex flex-col items-center justify-center p-4 fade-in">
+          {/* Background blobs */}
           <div className="absolute inset-0 overflow-hidden z-0">
-            <motion.div
-              className="absolute w-[500px] h-[500px] rounded-full bg-blue-200/30 dark:bg-blue-500/10 blur-3xl"
-              animate={{
-                x: [0, 100, 0],
-                y: [0, 50, 0],
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: 20,
-                ease: "easeInOut",
-              }}
+            <div 
+              className="absolute w-[500px] h-[500px] rounded-full bg-blue-200/30 dark:bg-blue-500/10 blur-3xl blob-animation-1"
               style={{ top: "10%", left: "10%" }}
             />
-            <motion.div
-              className="absolute w-[400px] h-[400px] rounded-full bg-purple-200/30 dark:bg-purple-500/10 blur-3xl"
-              animate={{
-                x: [0, -70, 0],
-                y: [0, 100, 0],
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: 25,
-                ease: "easeInOut",
-              }}
+            <div
+              className="absolute w-[400px] h-[400px] rounded-full bg-purple-200/30 dark:bg-purple-500/10 blur-3xl blob-animation-2"
               style={{ top: "40%", right: "15%" }}
             />
           </div>
 
           {/* Main content */}
-          <motion.div 
-            className="z-10 flex flex-col items-center max-w-3xl w-full"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <motion.h1 
-              className="text-4xl md:text-5xl font-bold text-center mb-6 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.8 }}
-            >
+          <div className="z-10 flex flex-col items-center max-w-3xl w-full fade-in-up">
+            <h1 className="text-4xl md:text-5xl font-bold text-center mb-6 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">
               Describe your website idea
-            </motion.h1>
+            </h1>
 
-            <motion.p 
-              className="text-lg text-gray-600 dark:text-gray-300 text-center mb-10 max-w-lg"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 0.8 }}
-            >
+            <p className="text-lg text-gray-600 dark:text-gray-300 text-center mb-10 max-w-lg">
               Type your idea and we'll generate website sections for you
-            </motion.p>
+            </p>
 
             {/* Prompt input box */}
-            <motion.form 
+            <form 
               className={`relative w-full max-w-2xl transition-all duration-300 ${inputFocused ? 'scale-105' : ''}`}
               onSubmit={handleSubmit}
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.6, duration: 0.5 }}
             >
               <div className="relative">
                 <input
@@ -269,79 +240,50 @@ export default function Home() {
                   value={inputValue}
                   autoFocus
                 />
-                <AnimatePresence>
-                  {!inputFocused && (
-                    <motion.div 
-                      className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      <motion.span 
-                        className="text-gray-400 dark:text-gray-500"
-                        key={currentSuggestion}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        {PROMPT_SUGGESTIONS[currentSuggestion]}
-                      </motion.span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <motion.button
+              
+                <button
                   type="submit"
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gradient-to-r from-purple-600 to-blue-500 text-white px-6 py-2 rounded-full font-medium hover:from-purple-700 hover:to-blue-600 transition-all"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gradient-to-r from-purple-600 to-blue-500 text-white px-6 py-2 rounded-full font-medium hover:from-purple-700 hover:to-blue-600 transition-all hover:scale-105 active:scale-95"
                 >
                   Generate
-                </motion.button>
+                </button>
               </div>
-            </motion.form>
+            </form>
 
-            {/* Flying suggestions */}
-            <div className="mt-16 relative w-full max-w-2xl h-20">
-              <AnimatePresence>
-                {PROMPT_SUGGESTIONS.map((suggestion, index) => {
-                  // Only show 3 suggestions at a time
-                  if ((index + currentSuggestion) % PROMPT_SUGGESTIONS.length >= 3) return null;
-                  
-                  const position = (index + currentSuggestion) % PROMPT_SUGGESTIONS.length;
-                  const xPositions = [-200, 0, 200];
-                  
-                  return (
-                    <motion.div
-                      key={`${suggestion}-${position}`}
-                      className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 px-4 py-2 rounded-full bg-white/80 dark:bg-gray-800/80 shadow-md backdrop-blur-sm text-sm"
-                      initial={{ opacity: 0, x: xPositions[position] - 300, y: 0 }}
-                      animate={{ opacity: position === 1 ? 1 : 0.7, x: xPositions[position], y: 0 }}
-                      exit={{ opacity: 0, x: xPositions[position] + 300 }}
-                      transition={{ duration: 0.5 }}
-                    >
-                      {suggestion}
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
+            {/* Cloud suggestions with fixed positions defined in CSS */}
+            <div className="cloud-container">
+              {PROMPT_SUGGESTIONS.map((suggestion, index) => {
+                // Use one of 4 float animations
+                const floatClass = `float-${(index % 4) + 1}`;
+                
+                // Handle click on suggestion to populate input field
+                const handleSuggestionClick = () => {
+                  setInputValue(suggestion);
+                  setInputFocused(true);
+                };
+                
+                return (
+                  <div
+                    key={`${suggestion}-${index}`}
+                    className={`cloud-suggestion ${floatClass}`}
+                    onClick={handleSuggestionClick}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Use suggestion: ${suggestion}`}
+                  >
+                    {suggestion}
+                  </div>
+                );
+              })}
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       ) : (
         // Builder Workspace
-        <motion.div
-          key="builder"
-          className="w-full"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+        <div className="w-full fade-in">
           <BuilderWorkspace
             prompt={currentPrompt}
             onPromptChange={handlePromptChange}
-            onRegenerate={handleRegenerate}
             onReset={handleReset}
             isLoading={isLoading}
             sections={sections}
@@ -350,8 +292,8 @@ export default function Home() {
             error={error}
             onClearError={handleClearError}
           />
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }
