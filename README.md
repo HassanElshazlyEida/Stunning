@@ -382,6 +382,94 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 - **Error Boundaries**: Graceful error handling with fallback UI
 - **Performance Optimized**: Code splitting and lazy loading for fast load times
 
+## 🧪 Testing
+
+Comprehensive testing setup with both automated and manual testing approaches.
+
+### Quick Test Setup
+
+**Automated Setup (Recommended):**
+```bash
+# Windows
+.\setup-tests.bat
+
+# Linux/Mac
+chmod +x setup-tests.sh
+./setup-tests.sh
+```
+
+### Automated Testing
+
+**Frontend Tests:**
+```bash
+# Unit tests (Jest + Testing Library)
+cd frontend
+npm test                 # Run all tests
+npm run test:watch       # Watch mode
+npm run test:coverage    # Coverage report
+
+# E2E tests (Playwright)
+npm run test:e2e         # Run E2E tests
+npm run test:e2e:ui      # Interactive UI mode
+```
+
+**Backend Tests:**
+```bash
+# Unit tests (Jest)
+cd backend
+npm test                 # Run all tests
+npm run test:watch       # Watch mode
+npm run test:cov         # Coverage report
+npm run test:e2e         # End-to-end tests
+```
+
+**Docker Testing:**
+```bash
+# Test in containerized environment
+docker-compose -f docker-compose.dev.yml up -d
+docker-compose exec frontend npm test
+docker-compose exec backend npm test
+```
+
+### Test Types
+
+| Test Type | Location | Purpose |
+|-----------|----------|----------|
+| **Unit Tests** | `src/**/__tests__/` | Component and function testing |
+| **Integration Tests** | `src/**/*.spec.ts` | Service and API testing |
+| **E2E Tests** | `tests/e2e/` | Full user workflow testing |
+| **Manual Tests** | `TESTING.md` | Human verification procedures |
+
+### Test Results
+
+#### Backend Tests
+```diff
++ Test Suites: 3 passed, 3 total
++ Tests:       21 passed, 21 total
+  Snapshots:   0 total
+  Time:        2.515 s
+  Ran all test suites.
+```
+
+#### Frontend Tests
+```diff
++ Test Suites: 4 failed, 2 passed, 6 total
++ Tests:       8 failed, 14 passed, 22 total
+  Snapshots:   0 total
+  Time:        4.901 s
+```
+
+### Manual Testing
+
+Refer to [`TESTING.md`](./TESTING.md) for detailed manual testing procedures including:
+- Homepage and workspace functionality
+- API endpoint testing
+- Browser compatibility
+- Mobile responsiveness
+- Accessibility compliance
+- Performance benchmarks
+
+
 
 ## 🕰️ Development Roadmap
 
