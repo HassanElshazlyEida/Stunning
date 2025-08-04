@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiMenu, FiX, FiShare2, FiChevronLeft, FiChevronRight, FiMoreVertical, FiTrash2 } from 'react-icons/fi';
+import { FiMenu, FiX, FiShare2, FiChevronLeft, FiChevronRight, FiMoreVertical, FiTrash2, FiArrowLeft } from 'react-icons/fi';
 import { PromptHistoryItem } from '../services/api';
 import Link from 'next/link';
 import ErrorMessage from './ErrorMessage';
@@ -54,9 +54,13 @@ export default function BuilderWorkspace({
   const [activeMenuIndex, setActiveMenuIndex] = useState<number | null>(null);
   const [deleteStatus, setDeleteStatus] = useState<{id: string, status: 'deleting' | 'success' | 'error' | null}>({id: '', status: null});
   const [deleteConfirmation, setDeleteConfirmation] = useState<{show: boolean, promptId: string, promptText: string}>({show: false, promptId: '', promptText: ''});
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState(600);
+  const [viewMode, setViewMode] = useState<'section' | 'preview'>('section');
   
   // Create a ref for the textarea to focus it when needed
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const resizeStartPosRef = useRef(0);
   
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
@@ -109,6 +113,31 @@ export default function BuilderWorkspace({
     } catch (e) {
       return 'Just now';
     }
+  };
+  
+  // Handle resize start
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeStartPosRef.current = e.clientY;
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientY - resizeStartPosRef.current;
+      setPreviewHeight(prev => Math.max(300, Math.min(800, prev + delta)));
+      resizeStartPosRef.current = moveEvent.clientY;
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+  
+  // Toggle full screen preview
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
   };
 
   return (
@@ -191,7 +220,7 @@ export default function BuilderWorkspace({
                     aria-label="Collapse sidebar"
                     title="Collapse sidebar"
                   >
-                    <FiX className="w-4 h-4" />
+                    <FiArrowLeft className="w-4 h-4" />
                   </button>
                 </div>
                 
@@ -324,11 +353,34 @@ export default function BuilderWorkspace({
               </div>
             )}
 
-            {/* Sections - ChatGPT style with enhanced HTML tag rendering */}
-            <div className="max-w-3xl mx-auto space-y-8">
-              {!isLoading && sections.map((section, index) => {
-                
-                return (
+            {/* View mode toggle */}
+            {!isLoading && sections.length > 0 && (
+              <div className="max-w-4xl mx-auto mb-4 flex justify-center">
+                <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-lg flex space-x-1">
+                  <button
+                    onClick={() => setViewMode('section')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'section' 
+                      ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow-sm' 
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white'}`}
+                  >
+                    Section Mode
+                  </button>
+                  <button
+                    onClick={() => setViewMode('preview')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'preview' 
+                      ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow-sm' 
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white'}`}
+                  >
+                    Preview Mode
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Section Mode View */}
+            {viewMode === 'section' && !isLoading && sections.length > 0 && (
+              <div className="max-w-3xl mx-auto space-y-8">
+                {sections.map((section, index) => (
                   <motion.div
                     key={section.id}
                     className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow duration-300"
@@ -344,13 +396,84 @@ export default function BuilderWorkspace({
                     </div>
                     {/* Section content with actual HTML rendering */}
                     <div className="text-gray-700 dark:text-gray-300 max-w-none overflow-hidden">
-                      {/* Remove the extra div wrapper to avoid interfering with Tailwind styles */}
                       <div dangerouslySetInnerHTML={{ __html: section.content }} className="w-full" />
                     </div>
                   </motion.div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
+
+            {/* Preview Mode View - Cohesive website */}
+            {viewMode === 'preview' && (
+              <div className={`${isFullScreen ? 'fixed inset-0 z-50 bg-gray-900/90 p-4 flex items-center justify-center' : 'max-w-4xl mx-auto'}`}>
+                {!isLoading && sections.length > 0 && (
+                  <motion.div
+                    className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden ${isFullScreen ? 'w-full max-w-6xl h-[90vh]' : 'w-full'}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    {/* Website preview header */}
+                    <div className="bg-gray-100 dark:bg-gray-700 p-2 border-b border-gray-200 dark:border-gray-600 flex items-center">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 flex-1 text-center">
+                       Preview
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={toggleFullScreen}
+                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
+                          title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+                        >
+                          {isFullScreen ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Combined sections content */}
+                    <div 
+                      className="website-preview overflow-auto" 
+                      style={{ height: isFullScreen ? 'calc(90vh - 40px)' : `${previewHeight}px` }}
+                    >
+                      {sections.map((section) => (
+                        <div key={section.id} className="w-full">
+                          <div dangerouslySetInnerHTML={{ __html: section.content }} />
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Resize handle */}
+                    {!isFullScreen && (
+                      <div 
+                        className="h-2 bg-gray-100 dark:bg-gray-700 cursor-ns-resize flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        onMouseDown={handleResizeStart}
+                      >
+                        <div className="w-10 h-1 bg-gray-300 dark:bg-gray-500 rounded-full"></div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+                
+                {/* Close button for full screen mode */}
+                {isFullScreen && (
+                  <button 
+                    onClick={toggleFullScreen}
+                    className="fixed top-4 right-4 bg-gray-800 text-white p-2 rounded-full hover:bg-gray-700 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Error state */}
             {error && (
