@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: stunning-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: website-generator
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - stunning-network
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: stunning-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/website-generator?authSource=admin
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    networks:
+      - stunning-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Application
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    container_name: stunning-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - stunning-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  stunning-network:
+    driver: bridge

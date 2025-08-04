@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # MongoDB Database (same as production)
+  mongodb:
+    image: mongo:7.0
+    container_name: stunning-mongodb-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: website-generator
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_dev_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - stunning-dev-network
+
+  # Backend API (Development mode with hot reload)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: stunning-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/website-generator?authSource=admin
+    ports:
+      - "3001:3001"
+      - "9229:9229"  # Debug port
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - stunning-dev-network
+    command: npm run start:dev
+
+  # Frontend Application (Development mode with hot reload)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: stunning-frontend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend-dev
+    networks:
+      - stunning-dev-network
+    command: npm run dev
+
+volumes:
+  mongodb_dev_data:
+    driver: local
+
+networks:
+  stunning-dev-network:
+    driver: bridge

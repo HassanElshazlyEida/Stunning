@@ -250,6 +250,89 @@ npm run test         # Run unit tests
 npm run test:e2e     # Run end-to-end tests
 ```
 
+## 🐳 Docker Setup
+
+### Quick Start with Docker
+
+The easiest way to run the entire application stack is using Docker Compose:
+
+**Option 1: Automated Setup (Recommended)**
+```bash
+# Clone the repository
+git clone <repository-url>
+cd stunning
+
+# Windows
+.\docker-setup.bat
+
+# Linux/Mac
+chmod +x docker-setup.sh
+./docker-setup.sh
+```
+
+**Option 2: Manual Setup**
+```bash
+# Clone the repository
+git clone <repository-url>
+cd stunning
+
+# Start all services (MongoDB, Backend, Frontend)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
+```
+
+The application will be available at:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:3001
+- **MongoDB**: localhost:27017
+
+### Development with Docker
+
+For development with hot reload:
+
+```bash
+# Start development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# View development logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Stop development environment
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Docker Services
+
+| Service | Container | Port | Description |
+|---------|-----------|------|-------------|
+| `mongodb` | stunning-mongodb | 27017 | MongoDB database with sample data |
+| `backend` | stunning-backend | 3001 | NestJS API server |
+| `frontend` | stunning-frontend | 3000 | Next.js web application |
+
+### Environment Variables
+
+The Docker setup includes pre-configured environment variables:
+
+```env
+# MongoDB
+MONGO_INITDB_ROOT_USERNAME=admin
+MONGO_INITDB_ROOT_PASSWORD=password123
+MONGO_INITDB_DATABASE=website-generator
+
+# Backend
+MONGODB_URI=mongodb://admin:password123@mongodb:27017/website-generator?authSource=admin
+PORT=3001
+
+# Frontend
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
+
 ## 🔌 API Endpoints
 
 ### Prompts Management
