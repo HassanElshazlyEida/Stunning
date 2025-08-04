@@ -29,7 +29,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
         <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">Delete Prompt</h3>
         <p className="text-gray-600 dark:text-gray-300 mb-4">Are you sure you want to delete this prompt?</p>
         <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md mb-4">
-          <p className="text-gray-800 dark:text-gray-200 font-medium">"{promptText}"</p>
+          <p className="text-gray-800 dark:text-gray-200 font-medium">&ldquo;{promptText}&rdquo;</p>
         </div>
         <div className="flex justify-end gap-3">
           <button

@@ -67,7 +67,7 @@ const SectionDisplay: React.FC<SectionDisplayProps> = ({
           <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">No Sections Generated Yet</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">Enter a prompt below to generate website sections based on your idea.</p>
           <div className="text-sm text-gray-500 dark:text-gray-500 bg-white dark:bg-gray-800 p-3 rounded-lg inline-block">
-            <span className="font-medium">Example:</span> "Create a portfolio website for a photographer"
+            <span className="font-medium">Example:</span> &ldquo;Create a portfolio website for a photographer&rdquo;
           </div>
         </div>
       </div>

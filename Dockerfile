@@ -9,9 +9,9 @@ WORKDIR /app
 COPY frontend/package*.json ./frontend/
 COPY backend/package*.json ./backend/
 
-# Install dependencies
-RUN cd frontend && npm ci --only=production
-RUN cd backend && npm ci --only=production
+# Install dependencies (including devDependencies for build)
+RUN cd frontend && npm ci
+RUN cd backend && npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder

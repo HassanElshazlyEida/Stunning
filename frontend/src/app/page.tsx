@@ -368,7 +368,7 @@ export default function Home() {
             </h1>
 
             <p className="text-lg text-gray-600 dark:text-gray-300 text-center mb-10 max-w-lg">
-              Type your idea and we'll generate website sections for you
+              Type your idea and we&apos;ll generate website sections for you
             </p>
 
             {/* Prompt input box */}
