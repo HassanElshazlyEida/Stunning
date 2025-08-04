@@ -196,6 +196,7 @@ export const savePromptAndSections = async (text: string, sections: Section[]): 
 export const deletePrompt = async (id: string): Promise<boolean> => {
   try {
     console.log(`API: Deleting prompt with ID: ${id}`);
+
     
     // Validate MongoDB ID format (24 hex characters)
     const isValidMongoId = /^[0-9a-fA-F]{24}$/.test(id);
@@ -213,11 +214,8 @@ export const deletePrompt = async (id: string): Promise<boolean> => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Failed to delete prompt: ${response.status}`, errorText);
-      throw new Error(`Failed to delete prompt: ${response.status} - ${errorText}`);
+      return false;
     }
-    
-    const result = await response.json().catch(() => null);
-    console.log('Delete result:', result);
     
     return true;
   } catch (error) {

@@ -32,7 +32,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [sections, setSections] = useState<Section[]>([]);
   const [promptHistory, setPromptHistory] = useState<PromptHistoryItem[]>([]);
-  const [error, setError] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
   
   // Rotate through suggestions every 3 seconds
   useEffect(() => {
@@ -84,14 +84,14 @@ export default function Home() {
           }
         }
       } catch (err) {
-        console.error('Failed to initialize app:', err);
-        // Don't show error for this as it's not critical
+        console.error('Error initializing app:', err);
+        setError(null); // Don't show error for this as it's not critical
       }
     }
     
     initializeApp();
   }, []);
-
+  
   // Handle input focus
   const handleFocus = () => setInputFocused(true);
   
@@ -121,7 +121,7 @@ export default function Home() {
   // Generate sections from a prompt
   const generateSectionsFromPrompt = async (prompt: string) => {
     setIsLoading(true);
-    setError(undefined); // Clear any previous errors
+    setError(null); // Clear any previous errors
     
     try {
       // The generateSections function handles sending the session ID to the backend
@@ -157,7 +157,7 @@ export default function Home() {
   };
   
   // Handle prompt change in builder mode
-  const handlePromptChange = (newPrompt: string) => {
+  const handlePromptChange = async (newPrompt: string) => {
     if (newPrompt !== currentPrompt) {
       setCurrentPrompt(newPrompt);
       
@@ -167,18 +167,36 @@ export default function Home() {
         isActive: false
       }));
       
-      // Add to history if not already there
-      const newPromptItem: PromptHistoryItem = {
+      // Create temporary prompt item for immediate UI update
+      const tempPromptItem: PromptHistoryItem = {
         _id: `temp-${Date.now()}`, // Temporary ID until backend assigns one
         text: newPrompt,
         createdAt: new Date().toISOString(),
         isActive: true // Mark as active
       };
-      setPromptHistory([newPromptItem, ...updatedHistory]);
-
+      
+      // Update history immediately for better UX
+      setPromptHistory([tempPromptItem, ...updatedHistory]);
       
       // Generate sections for the new prompt
-      generateSectionsFromPrompt(newPrompt);
+      await generateSectionsFromPrompt(newPrompt);
+      
+      // After generating sections, refresh the prompt history to get the real ID from backend
+      try {
+        const sessionData = await checkSessionPrompts();
+        if (sessionData.hasPrompts && sessionData.prompts.length > 0) {
+          const sessionPrompts = sessionData.prompts.map(prompt => ({
+            _id: prompt._id,
+            text: prompt.text,
+            createdAt: prompt.createdAt || new Date().toISOString(),
+            updatedAt: prompt.updatedAt,
+            isActive: prompt.isActive || false
+          }));
+          setPromptHistory(sessionPrompts);
+        }
+      } catch (err) {
+        console.error('Error refreshing prompt history:', err);
+      }
     }
   };
   
@@ -187,12 +205,12 @@ export default function Home() {
     setIsBuilderMode(false);
     setInputValue("");
     setInputFocused(false);
-    setError(undefined);
+    setError(null);
   };
   
   // Clear error state
   const handleClearError = () => {
-    setError(undefined);
+    setError(null);
   };
   
   // Handle selecting a prompt from history
@@ -202,6 +220,13 @@ export default function Home() {
     console.log('Selected prompt with ID:', selectedPromptId);
     
     setCurrentPrompt(prompt.text);
+    
+    // Update the active state in prompt history
+    const updatedPromptHistory = promptHistory.map(p => ({
+      ...p,
+      isActive: p._id === selectedPromptId
+    }));
+    setPromptHistory(updatedPromptHistory);
     
     // Check if the prompt already has sections
     if (selectedPromptId && !selectedPromptId.startsWith('temp-')) {
@@ -219,16 +244,6 @@ export default function Home() {
               id: `section-${index}`
             }));
             setSections(sectionsWithId);
-            
-            // Update the current prompt ID in state
-            const updatedPromptHistory = promptHistory.map(p => {
-              if (p._id === selectedPromptId) {
-                return { ...p, isActive: true };
-              }
-              return { ...p, isActive: false };
-            });
-            setPromptHistory(updatedPromptHistory);
-            
             return; // Don't regenerate sections
           }
         }
@@ -245,67 +260,83 @@ export default function Home() {
   const handleDeletePrompt = async (promptId: string): Promise<boolean> => {
     console.log('handleDeletePrompt called with ID:', promptId);
     
-    // Skip API call for temporary IDs (they only exist in frontend)
-    if (promptId.startsWith('temp-')) {
-      console.log('Deleting temporary prompt (client-side only):', promptId);
-      setPromptHistory(prevHistory => prevHistory.filter(item => item._id !== promptId));
-      return true;
-    }
-    
     try {
       // Find the prompt in history to show what we're deleting
       const promptToDelete = promptHistory.find(p => p._id === promptId);
-      const isActivePrompt = promptToDelete?.isActive;
+      const isActivePrompt = promptToDelete?.isActive || promptToDelete?.text === currentPrompt;
       console.log('Deleting prompt:', promptToDelete?.text?.substring(0, 30), 'Active:', isActivePrompt);
       
-      // Direct API call to ensure we're hitting the backend
-      const response = await fetch(`http://localhost:3001/api/prompts/${promptId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      // Use the deletePrompt API function
+      await deletePrompt(promptId);
       
-      console.log('Delete API response status:', response.status);
+      console.log('Delete API call successful');
       
-      // Check if the delete was successful
-      if (response.ok) {
-        // Update the prompt history by removing the deleted prompt
-        console.log('Updating prompt history after successful delete');
-        setPromptHistory(prevHistory => {
-          const newHistory = prevHistory.filter(item => item._id !== promptId);
-          console.log('New history length:', newHistory.length, 'Old length:', prevHistory.length);
-          return newHistory;
-        });
+      // Update the prompt history by removing the deleted prompt
+      console.log('Updating prompt history after successful delete');
+      const newHistory = promptHistory.filter(item => item._id !== promptId);
+      
+      // If the deleted prompt was the current one, handle the UI reset
+      if (isActivePrompt) {
+        console.log('Deleted the active prompt, resetting UI');
         
-        // If the deleted prompt was the current one, reset the UI
-        if (isActivePrompt) {
-          console.log('Deleted the active prompt, resetting UI');
+        // If there are other prompts in history, select the most recent one
+        if (newHistory.length > 0) {
+          // Sort by createdAt in descending order and select the first one
+          const sortedPrompts = [...newHistory].sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          
+          console.log('Auto-selecting most recent prompt:', sortedPrompts[0].text.substring(0, 30));
+          
+          // Update the history with the new active prompt
+          const updatedHistoryWithActive = sortedPrompts.map((p, index) => ({
+            ...p,
+            isActive: index === 0 // Make the first (most recent) prompt active
+          }));
+          
+          setPromptHistory(updatedHistoryWithActive);
+          setCurrentPrompt(sortedPrompts[0].text);
+          
+          // Load sections for the selected prompt
+          try {
+            console.log('Fetching existing prompt data for:', sortedPrompts[0]._id);
+            const response = await fetch(`http://localhost:3001/api/prompts/${sortedPrompts[0]._id}`);
+            
+            if (response.ok) {
+              const promptData = await response.json();
+              if (promptData && promptData.sections && promptData.sections.length > 0) {
+                console.log('Using existing sections from saved prompt');
+                const sectionsWithId = promptData.sections.map((section: { title: string; content: string }, index: number) => ({
+                  ...section,
+                  id: `section-${index}`
+                }));
+                setSections(sectionsWithId);
+              } else {
+                // Generate sections if none exist
+                generateSectionsFromPrompt(sortedPrompts[0].text);
+              }
+            } else {
+              // Fallback to generating sections
+              generateSectionsFromPrompt(sortedPrompts[0].text);
+            }
+          } catch (error) {
+            console.error('Error fetching prompt data:', error);
+            // Fallback to generating sections
+            generateSectionsFromPrompt(sortedPrompts[0].text);
+          }
+        } else {
+          // No prompts left, clear everything
+          setPromptHistory([]);
           setCurrentPrompt('');
           setSections([]);
-          
-          // If there are other prompts in history, select the most recent one
-          const remainingPrompts = promptHistory.filter(p => p._id !== promptId);
-          if (remainingPrompts.length > 0) {
-            // Sort by createdAt in descending order and select the first one
-            const sortedPrompts = [...remainingPrompts].sort((a, b) => 
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-            
-            console.log('Auto-selecting most recent prompt:', sortedPrompts[0].text.substring(0, 30));
-            handleSelectPrompt(sortedPrompts[0]);
-          }
-          // No longer redirecting to home page when all prompts are deleted
         }
-        
-        return true;
+      } else {
+        // Just update the history without changing active prompt
+        setPromptHistory(newHistory);
       }
       
-      // Handle error response
-      const errorText = await response.text().catch(() => 'Unknown error');
-      console.warn(`API returned error status ${response.status}:`, errorText);
-      setError(`Failed to delete prompt: ${response.status} ${errorText}`);
-      return false;
+      console.log('New history length:', newHistory.length, 'Old length:', promptHistory.length);
+      return true;
     } catch (error) {
       console.error('Error deleting prompt:', error);
       setError('Failed to delete prompt. Please try again.');
@@ -399,14 +430,17 @@ export default function Home() {
           <BuilderWorkspace
             prompt={currentPrompt}
             onPromptChange={handlePromptChange}
-            onReset={handleReset}
             isLoading={isLoading}
             sections={sections}
             promptHistory={promptHistory}
             onSelectPrompt={handleSelectPrompt}
             onDeletePrompt={handleDeletePrompt}
             error={error}
-            onClearError={handleClearError}
+            onClearError={() => setError(null)}
+            onReset={() => {
+              setSections([]);
+              setCurrentPrompt('');
+            }}
           />
         </div>
       )}
