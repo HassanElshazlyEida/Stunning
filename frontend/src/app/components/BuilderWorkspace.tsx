@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiMenu, FiX, FiShare2, FiChevronLeft, FiChevronRight, FiMoreVertical, FiTrash2 } from 'react-icons/fi';
 import { PromptHistoryItem } from '../services/api';
@@ -55,6 +55,9 @@ export default function BuilderWorkspace({
   const [deleteStatus, setDeleteStatus] = useState<{id: string, status: 'deleting' | 'success' | 'error' | null}>({id: '', status: null});
   const [deleteConfirmation, setDeleteConfirmation] = useState<{show: boolean, promptId: string, promptText: string}>({show: false, promptId: '', promptText: ''});
   
+  // Create a ref for the textarea to focus it when needed
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +65,17 @@ export default function BuilderWorkspace({
       onPromptChange(newPrompt);
     }
   };
+  
+  // Effect to update newPrompt when prompt prop changes (e.g., when selecting from history)
+  useEffect(() => {
+    setNewPrompt(prompt);
+    // Focus the textarea when prompt changes
+    if (textareaRef.current) {
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
+    }
+  }, [prompt]);
   
   // Share all sections (copy to clipboard with better UX)
   const shareContent = () => {
@@ -152,7 +166,7 @@ export default function BuilderWorkspace({
         {/* Sidebar toggle button */}
         <button 
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute top-4 left-0 z-10 bg-white dark:bg-gray-800 shadow-md rounded-r-md p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="absolute fixed top-15 left-0 z-10 bg-white dark:bg-gray-800 shadow-md rounded-r-md p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
         >
           {sidebarOpen ? <FiChevronLeft className="w-4 h-4" /> : <FiChevronRight className="w-4 h-4" />}
@@ -196,7 +210,10 @@ export default function BuilderWorkspace({
                           >
                             <div className="flex justify-between items-start">
                               <button
-                                onClick={() => onSelectPrompt(historyPrompt)}
+                                onClick={() => {
+                                  onSelectPrompt(historyPrompt);
+                                  // Focus will be handled by the useEffect that watches for prompt changes
+                                }}
                                 className="text-left flex-1 overflow-hidden"
                                 disabled={isDeleting}
                               >
@@ -310,20 +327,6 @@ export default function BuilderWorkspace({
             {/* Sections - ChatGPT style with enhanced HTML tag rendering */}
             <div className="max-w-3xl mx-auto space-y-8">
               {!isLoading && sections.map((section, index) => {
-                // Process content to add styling to HTML tags with improved syntax highlighting
-                const styledContent = section.content
-                  // Style opening tags with attributes
-                  .replace(/<([a-z0-9]+)([^>]*)>/gi, (match, tag, attrs) => {
-                    const styledAttrs = attrs.replace(/([a-z0-9-]+)=(["'])(.*?)\2/gi, 
-                      '<span class="text-blue-500 dark:text-blue-400">$1</span>=<span class="text-amber-500 dark:text-amber-400">$2$3$2</span>');
-                    return `<span class="text-pink-600 dark:text-pink-400">&lt;${tag}</span>${styledAttrs}<span class="text-pink-600 dark:text-pink-400">&gt;</span>`;
-                  })
-                  // Style simple opening tags
-                  .replace(/<([a-z0-9]+)>/gi, '<span class="text-pink-600 dark:text-pink-400">&lt;$1&gt;</span>')
-                  // Style closing tags
-                  .replace(/<\/([a-z0-9]+)>/gi, '<span class="text-pink-600 dark:text-pink-400">&lt;/$1&gt;</span>')
-                  // Style indentation for better readability
-                  .replace(/\n\s+/g, (match) => '\n' + match.replace(/\s/g, '&nbsp;'));
                 
                 return (
                   <motion.div
@@ -339,10 +342,11 @@ export default function BuilderWorkspace({
                       </div>
                       <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">{section.title}</h3>
                     </div>
-                    <div 
-                      className="text-gray-700 dark:text-gray-300 prose dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg font-mono text-sm overflow-x-auto" 
-                      dangerouslySetInnerHTML={{ __html: styledContent }}
-                    />
+                    {/* Section content with actual HTML rendering */}
+                    <div className="text-gray-700 dark:text-gray-300 max-w-none overflow-hidden">
+                      {/* Remove the extra div wrapper to avoid interfering with Tailwind styles */}
+                      <div dangerouslySetInnerHTML={{ __html: section.content }} className="w-full" />
+                    </div>
                   </motion.div>
                 );
               })}
@@ -382,6 +386,7 @@ export default function BuilderWorkspace({
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
               <div className="relative flex items-end rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
                 <textarea
+                  ref={textareaRef}
                   className="w-full p-3 pr-16 bg-transparent text-gray-700 dark:text-gray-200 outline-none resize-none min-h-[56px] max-h-[200px] custom-scrollbar"
                   rows={3}
                   value={newPrompt}
